@@ -1,6 +1,6 @@
 
 
-# Xploit0 - Security Analysis Tool
+# Xploit0 - Dependency Scanner & Security Analysis Tool 
 
 ![Logo](https://i.ibb.co/gQt4BM1/i-1-removebg-preview.png")
 
