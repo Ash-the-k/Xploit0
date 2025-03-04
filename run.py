@@ -118,14 +118,10 @@ Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
         master_log = os.path.join('logs', f'complete_analysis_{self.timestamp}.log')
         
         scripts = [
-            ('scanner.py', 'Code Scanning'),
-            ('library.py', 'Library Analysis'),
             ('depscan.py', 'Dependency Scanning'),
-            ('gitpr.py', 'Git Analysis'),
             ('cvefetch.py', 'CVE Data Fetching'),
             ('cvedata.py', 'CVE Data Processing'),
             ('preproscsv.py', 'Data Preprocessing'),
-            ('depriskai.py', 'AI Risk Analysis'),
             ('modeltrain.py', 'Model Training'),
             ('predict.py', 'Vulnerability Prediction')
         ]
@@ -232,9 +228,8 @@ Failed: {sum(1 for r in results if not r['success'])}
             log.write(summary)
             print(summary)
 
-            # Start dashboards
-            print(f"{Fore.GREEN}Starting dashboards...{Style.RESET_ALL}")
-            subprocess.Popen(['python', '-m', 'flask', 'run'])
+            # Start Streamlit dashboard
+            print(f"{Fore.GREEN}Starting Streamlit Dashboard...{Style.RESET_ALL}")
             subprocess.Popen(['streamlit', 'run', 'dashboard.py'])
 
             return master_log, results
