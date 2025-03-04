@@ -11,17 +11,6 @@ This README will guide you through the process of setting up Xploit0, running th
 
 ---
 
-## Prerequisites
-
-Before you get started, ensure you have the following installed:
-
-- Python 3.x
-- `pip` (Python package manager)
-- Streamlit (`pip install streamlit`)
-- Virtual environment tool (`python -m venv`)
-
----
-
 ## Steps to Set Up and Run Xploit0
 
 ### 1. Set Up a Virtual Environment
@@ -68,7 +57,7 @@ To start the security analysis, run the `run_analysis.py` script. This script wi
 To run the analysis, use the following command:
 
 ```bash
-python run_analysis.py
+python run.py
 ```
 
 Each script will execute in order, and the output will be saved in logs for later review.
