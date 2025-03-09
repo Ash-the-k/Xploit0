@@ -85,7 +85,7 @@ The interactive dashboard will display:
 - Detected vulnerabilities
 - CVE data
 - Model predictions
-- And much more!
+- And much more!!
 
 ### 5. Check Logs and Reports
 
