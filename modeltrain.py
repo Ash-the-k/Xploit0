@@ -69,37 +69,47 @@ def preprocess_data(df):
     # Store original data for later reference
     metadata = df[['CVE_ID', 'Package', 'Severity']].copy()
     
-    return X, y, feature_names, metadata
+    return X, y, feature_names, metadata, tfidf, scaler
 
 # Load the data
 df = pd.read_csv('cve_data.csv')
 
 # Preprocess data
-X, y, feature_names, metadata = preprocess_data(df)
+X, y, feature_names, metadata, tfidf, scaler = preprocess_data(df)
 
 # Verify no NaN values
 print("\nChecking for NaN values:")
 print("NaN in features:", np.isnan(X).any())
 print("NaN in target:", np.isnan(y).any())
 
-# Split the data
-X_train, X_test, y_train, y_test, metadata_train, metadata_test = train_test_split(
+# First split: separate out test set (20%)
+X_temp, X_test, y_temp, y_test, metadata_temp, metadata_test = train_test_split(
     X, y, metadata, test_size=0.2, random_state=42
 )
 
-print("\nTraining data shape:", X_train.shape)
-print("Testing data shape:", X_test.shape)
+# Second split: split remaining data into train and validation (80-20 of remaining data)
+X_train, X_val, y_train, y_val, metadata_train, metadata_val = train_test_split(
+    X_temp, y_temp, metadata_temp, test_size=0.2, random_state=42
+)
+
+print("\nData split sizes:")
+print(f"Training set: {X_train.shape[0]} samples")
+print(f"Validation set: {X_val.shape[0]} samples")
+print(f"Test set: {X_test.shape[0]} samples")
 
 # Train the model
 model = RandomForestClassifier(n_estimators=200, max_depth=10, random_state=42)
 model.fit(X_train, y_train)
 
-# Cross-validation
-cv_scores = cross_val_score(model, X, y, cv=5)
-print("\nCross-validation scores:", cv_scores)
-print("Average CV score: {:.2f} (+/- {:.2f})".format(cv_scores.mean(), cv_scores.std() * 2))
+# Evaluate on validation set
+val_pred = model.predict(X_val)
+print("\nValidation Set Performance:")
+print(f"Accuracy: {accuracy_score(y_val, val_pred):.2f}")
+print("\nValidation Classification Report:")
+print(classification_report(y_val, val_pred, 
+                          target_names=['Low', 'Medium', 'High', 'Critical']))
 
-# Make predictions
+# Final evaluation on test set
 y_pred = model.predict(X_test)
 
 # Create a DataFrame for predictions
@@ -111,10 +121,10 @@ predictions_df = pd.DataFrame({
 })
 
 # Print detailed results
-print("\nModel Evaluation:")
+print("\nTest Set Evaluation:")
 print(f"Accuracy: {accuracy_score(y_test, y_pred):.2f}")
 
-print("\nClassification Report:")
+print("\nTest Set Classification Report:")
 print(classification_report(y_test, y_pred, 
                           target_names=['Low', 'Medium', 'High', 'Critical']))
 
@@ -124,7 +134,7 @@ cm = confusion_matrix(y_test, y_pred)
 sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
             xticklabels=['Low', 'Medium', 'High', 'Critical'],
             yticklabels=['Low', 'Medium', 'High', 'Critical'])
-plt.title('Confusion Matrix')
+plt.title('Confusion Matrix (Test Set)')
 plt.ylabel('True Label')
 plt.xlabel('Predicted Label')
 plt.savefig('confusion_matrix.png')
@@ -171,3 +181,12 @@ else:
 model_file = "trained_model.joblib"
 joblib.dump(model, model_file)
 print(f"\nModel saved to {model_file}")
+
+# Save preprocessing objects
+preprocessing_objects = {
+    'tfidf': tfidf,
+    'scaler': scaler,
+    'feature_names': feature_names
+}
+joblib.dump(preprocessing_objects, 'preprocessing_objects.joblib')
+print("Preprocessing objects saved to preprocessing_objects.joblib")

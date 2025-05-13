@@ -24,13 +24,17 @@ def get_recommendation(row):
 
 def preprocess_new_data(df):
     """Preprocess new data for prediction"""
+    # Load preprocessing objects
+    preprocessing_objects = joblib.load('preprocessing_objects.joblib')
+    tfidf = preprocessing_objects['tfidf']
+    scaler = preprocessing_objects['scaler']
+    
     # Handle missing values in CVSS
     df['CVSS'] = pd.to_numeric(df['CVSS'].replace('N/A', np.nan))
     df['CVSS'] = df['CVSS'].fillna(df['CVSS'].mean())
     
-    # Create text features using TF-IDF
-    tfidf = TfidfVectorizer(max_features=100, stop_words='english')
-    description_features = tfidf.fit_transform(df['Description'].fillna(''))
+    # Create text features using saved TF-IDF
+    description_features = tfidf.transform(df['Description'].fillna(''))
     
     # Create basic numeric features
     df['Description_Length'] = df['Description'].str.len()
@@ -46,9 +50,8 @@ def preprocess_new_data(df):
     # Combine numeric and text features
     X = np.hstack((X_numeric, X_text))
     
-    # Scale numeric features
-    scaler = StandardScaler()
-    X[:, :len(numeric_features)] = scaler.fit_transform(X[:, :len(numeric_features)])
+    # Scale numeric features using saved scaler
+    X[:, :len(numeric_features)] = scaler.transform(X[:, :len(numeric_features)])
     
     return X
 

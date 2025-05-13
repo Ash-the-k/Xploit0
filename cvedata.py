@@ -5,6 +5,9 @@ import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
+import os
+import json
+from packaging import requirements
 
 NVD_API_KEY = "02586fa2-ed24-4dbb-bdb8-782288531511"
 
@@ -14,31 +17,30 @@ def fetch_cve_data(package_name):
         "User-Agent": "Xploit0-Security-Scanner",
         "apiKey": NVD_API_KEY
     }
-    
+
     all_cves = []
     start_index = 0
-    
+
     while True:
         params = {
             "keywordSearch": package_name,
-            "resultsPerPage": 100,  # Max allowed per request
+            "resultsPerPage": 100,
             "startIndex": start_index
         }
-        
+
         try:
-            time.sleep(1)  # Rate limiting
+            time.sleep(1)  # Respect rate limits
             response = requests.get(url, headers=headers, params=params)
-            
+
             if response.status_code != 200:
-                print(f"Error fetching data: {response.status_code}")
+                print(f"Error fetching data for {package_name}: {response.status_code}")
                 break
-            
+
             data = response.json()
             vulns = data.get("vulnerabilities", [])
-            
-            if not vulns:  # No more results
+            if not vulns:
                 break
-            
+
             for item in vulns:
                 cve = item.get("cve", {})
                 cve_id = cve.get("id", "N/A")
@@ -46,23 +48,21 @@ def fetch_cve_data(package_name):
                 metrics = cve.get("metrics", {}).get("cvssMetricV31", [{}])[0].get("cvssData", {})
                 cvss_score = metrics.get("baseScore", "N/A")
                 severity = metrics.get("baseSeverity", "N/A")
-                
+
                 all_cves.append([cve_id, package_name, cvss_score, severity, description])
-            
-            # Show progress
+
             print(f"Fetched {len(all_cves)} vulnerabilities so far...")
-            
-            # Check if we've got all results
+
             total_results = data.get("totalResults", 0)
             if start_index + len(vulns) >= total_results:
                 break
-                
+
             start_index += len(vulns)
-            
+
         except Exception as e:
             print(f"Error processing {package_name}: {str(e)}")
             break
-    
+
     return all_cves
 
 def save_to_csv(cve_data, filename="cve_data.csv"):
@@ -73,40 +73,77 @@ def save_to_csv(cve_data, filename="cve_data.csv"):
     print(f"Saved to {filename}")
 
 def prepare_training_data(cve_data):
-    """Prepare CVE data for model training."""
     if not cve_data:
         print("No data available for training")
         return None, None, None, None
-    
-    # Convert to DataFrame
+
     df = pd.DataFrame(cve_data, columns=["CVE_ID", "Package", "CVSS", "Severity", "Description"])
-    
-    # Convert CVSS to numeric, handling 'N/A' values
+
     df['CVSS'] = pd.to_numeric(df['CVSS'].replace('N/A', np.nan))
     df['CVSS'] = df['CVSS'].fillna(df['CVSS'].mean())
-    
-    # Encode severity levels
+
     le = LabelEncoder()
     df['Severity'] = le.fit_transform(df['Severity'].fillna('UNKNOWN'))
-    
-    # Prepare features (X) and target (y)
-    X = df[['CVSS']].values  # You can add more features here
+
+    X = df[['CVSS']].values
     y = df['Severity'].values
-    
-    # Split the data
+
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-    
+
     print("Data preparation completed:")
     print(f"Training samples: {len(X_train)}")
     print(f"Testing samples: {len(X_test)}")
-    
+
     return X_train, X_test, y_train, y_test
 
+def get_packages_from_requirements(file_path="requirements.txt"):
+    packages = []
+    if not os.path.exists(file_path):
+        print("[!] requirements.txt not found")
+        return packages
+    with open(file_path, 'r') as f:
+        for line in f:
+            line = line.strip()
+            if line and not line.startswith("#"):
+                try:
+                    req = requirements.Requirement(line)
+                    packages.append(req.name)
+                except Exception as e:
+                    print(f"[!] Skipping invalid line: {line} ({e})")
+    return packages
+
+def get_packages_from_packages_json(file_path="packages.json"):
+    packages = []
+    if not os.path.exists(file_path):
+        print("[!] packages.json not found")
+        return packages
+    try:
+        with open(file_path, 'r') as f:
+            data = json.load(f)
+            for pkg in data.get("packages", []):
+                if isinstance(pkg, list) and len(pkg) == 2:
+                    packages.append(pkg[0])
+    except Exception as e:
+        print(f"[!] Error reading packages.json: {str(e)}")
+    return packages
+
 if __name__ == "__main__":
-    packages = ["tensorflow", "django", "flask", "numpy"]
+    # Collect packages from both files
+    packages = set()
+
+    reqs = get_packages_from_requirements()
+    pkgs = get_packages_from_packages_json()
+
+    packages.update(reqs)
+    packages.update(pkgs)
+
+    if not packages:
+        print("[!] No valid packages found in requirements.txt or packages.json.")
+        exit()
+
     all_cve_data = []
-    
-    for package in packages:
+
+    for package in sorted(packages):
         print(f"\nFetching CVEs for {package}...")
         cve_data = fetch_cve_data(package)
         if cve_data:
@@ -114,16 +151,12 @@ if __name__ == "__main__":
             all_cve_data.extend(cve_data)
         else:
             print(f"No vulnerabilities found for {package}")
-    
+
     if all_cve_data:
-        # Save raw data
         save_to_csv(all_cve_data)
         print(f"\nTotal vulnerabilities found: {len(all_cve_data)}")
-        
-        # Prepare data for training
+
         X_train, X_test, y_train, y_test = prepare_training_data(all_cve_data)
-        
-        # Save training data to separate files
         if X_train is not None:
             np.save('X_train.npy', X_train)
             np.save('X_test.npy', X_test)
@@ -131,4 +164,4 @@ if __name__ == "__main__":
             np.save('y_test.npy', y_test)
             print("\nTraining data saved to .npy files")
     else:
-        print("\nNo vulnerabilities found for any package")
+        print("\nNo vulnerabilities found for any package.")
